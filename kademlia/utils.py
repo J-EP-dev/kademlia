@@ -44,7 +44,7 @@ def bytes_to_bit_string(bites):
 
 def touch_dir(directory):
     """
-    Create dir.
+    Create dir if not exists.
     """
     if not os.path.isdir(directory):
         os.makedirs(directory)

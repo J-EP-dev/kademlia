@@ -32,7 +32,7 @@ class KademliaProtocol(RPCProtocol):
         return ids
 
     @staticmethod
-    def rpc_stun(self, sender):  # pylint: disable=no-self-use
+    def rpc_stun(sender):  # pylint: disable=no-self-use
         return sender
 
     def rpc_ping(self, sender, nodeid):
@@ -49,6 +49,14 @@ class KademliaProtocol(RPCProtocol):
         return True
 
     def rpc_file_store(self, sender, node_id, key, value, is_bin):
+        """
+        Store the data in a file.
+        @param sender: source node.
+        @param node_id: source node.
+        @param key: Key that will be the file name.
+        @param value: The data that will be inside the file.
+        @param is_bin: If it is a binary file it will be stored with a different folder and extension.
+        """
         source = Node(node_id, sender[0], sender[1])
         self.welcome_if_new(source)
         log.debug(f"got a store request from {sender}, storing '{key.hex}'='{value}'")
@@ -65,6 +73,13 @@ class KademliaProtocol(RPCProtocol):
         return True
 
     def rpc_find_file(self, sender, node_id, key):
+        """
+        Find in the actual node the file based on the key.
+        @param sender: source node.
+        @param node_id: source node.
+        @param key: The key we want to find.
+        @return: value if found, else `None`.
+        """
         source = Node(node_id, sender[0], sender[1])
         self.welcome_if_new(source)
         value = None
@@ -74,12 +89,9 @@ class KademliaProtocol(RPCProtocol):
             with open(os.path.join(files_path, key.hex() + ".kad"), "rb") as f:
                 value = f.read()
 
-        if key.hex() + ".txt" in os.listdir(data_path):
+        elif key.hex() + ".txt" in os.listdir(data_path):
             with open(os.path.join(data_path, key.hex() + ".txt"), "r") as f:
                 value = f.read()
-
-        if value is None:
-            return self.rpc_find_node(sender, node_id, key)
 
         return {'value': value}
 
@@ -113,6 +125,9 @@ class KademliaProtocol(RPCProtocol):
         return self.handle_call_response(result, node_to_ask)
 
     async def call_file_value(self, node_to_ask, node_to_find):
+        """
+        Find the file in the node.
+        """
         address = (node_to_ask.ip, node_to_ask.port)
         result = await self.find_file(address, self.source_node.id, node_to_find.id)
         return self.handle_call_response(result, node_to_ask)
@@ -124,7 +139,7 @@ class KademliaProtocol(RPCProtocol):
 
     async def call_file_store(self, node_to_ask, key, value, is_bin):
         """
-        Replace variable storage with file storage for file saving.
+        Replace variable storage with file storage for file saving and persistence.
         """
         address = (node_to_ask.ip, node_to_ask.port)
         result = await self.file_store(address, self.source_node.id, key, value, is_bin)

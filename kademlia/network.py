@@ -155,6 +155,11 @@ class Server:
         return await spider.find()
 
     async def get_files(self, key):
+        """
+        Use all connected nodes to find a specific file based on the key.
+        @param key: The key we want to find.
+        @return: The value if found, else `None`.
+        """
         log.info(f"Looking up key {key}")
         d_key = digest(key)
         node = Node(d_key)
@@ -178,6 +183,12 @@ class Server:
         return await self.set_digest(dkey, value)
 
     async def set_files(self, key, value, is_bin):
+        """
+        Send a file to be stored in the network.
+        @param key: where we want to save it.
+        @param value: What we want to save
+        @param is_bin: If the file is a binary file or just normal string.
+        """
         if not check_dht_value_type(value):
             raise TypeError(
                 "Value must be of type int, float, bool, str, or bytes"
@@ -213,6 +224,13 @@ class Server:
         return any(await asyncio.gather(*results))
 
     async def set_file_digest(self, d_key, value, is_bin):
+        """
+        Call the store method for the nodes in the network.
+        @param d_key: where we want to save it.
+        @param value: What we want to save
+        @param is_bin: If the file is a binary file or just normal string.
+        @return:
+        """
         node = Node(d_key)
         nearest = self.protocol.router.find_neighbors(node)
         if not nearest:

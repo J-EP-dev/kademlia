@@ -82,6 +82,9 @@ class ValueSpiderCrawl(SpiderCrawl):
         return await self._find(self.protocol.call_find_value)
 
     async def find_files(self):
+        """
+        Find values inside files in the nodes.
+        """
         return await self._find(self.protocol.call_file_value)
 
     async def _nodes_found(self, responses):
