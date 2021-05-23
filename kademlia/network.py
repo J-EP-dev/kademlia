@@ -154,6 +154,17 @@ class Server:
                                   self.ksize, self.alpha)
         return await spider.find()
 
+    async def get_files(self, key):
+        log.info(f"Looking up key {key}")
+        d_key = digest(key)
+        node = Node(d_key)
+        nearest = self.protocol.router.find_neighbors(node)
+        if not nearest:
+            log.warning(f"There are no known neighbors to get key {key}")
+            return None
+        spider = ValueSpiderCrawl(self.protocol, node, nearest, self.ksize, self.alpha)
+        return await spider.find_files()
+
     async def set(self, key, value):
         """
         Set the given string key to the given value in the network.
@@ -165,6 +176,15 @@ class Server:
         log.info("setting '%s' = '%s' on network", key, value)
         dkey = digest(key)
         return await self.set_digest(dkey, value)
+
+    async def set_files(self, key, value, is_bin):
+        if not check_dht_value_type(value):
+            raise TypeError(
+                "Value must be of type int, float, bool, str, or bytes"
+            )
+        log.info("setting '%s' = '%s' on network", key, value)
+        d_key = digest(key)
+        return await self.set_file_digest(d_key, value, is_bin)
 
     async def set_digest(self, dkey, value):
         """
@@ -190,6 +210,21 @@ class Server:
             self.storage[dkey] = value
         results = [self.protocol.call_store(n, dkey, value) for n in nodes]
         # return true only if at least one store call succeeded
+        return any(await asyncio.gather(*results))
+
+    async def set_file_digest(self, d_key, value, is_bin):
+        node = Node(d_key)
+        nearest = self.protocol.router.find_neighbors(node)
+        if not nearest:
+            log.warning(f"There are no known neighbors to set key {d_key.hex()}")
+            return False
+
+        spider = NodeSpiderCrawl(self.protocol, node, nearest, self.ksize, self.alpha)
+        nodes = await spider.find()
+
+        log.info("setting '%s' on %s", d_key.hex(), list(map(str, nodes)))
+
+        results = [self.protocol.call_file_store(n, d_key, value, is_bin) for n in nodes]
         return any(await asyncio.gather(*results))
 
     def save_state(self, fname):

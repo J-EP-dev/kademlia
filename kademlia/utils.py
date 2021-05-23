@@ -4,6 +4,7 @@ General catchall for functions that don't make sense as methods.
 import hashlib
 import operator
 import asyncio
+import os
 
 
 async def gather_dict(dic):
@@ -39,3 +40,11 @@ def shared_prefix(args):
 def bytes_to_bit_string(bites):
     bits = [bin(bite)[2:].rjust(8, '0') for bite in bites]
     return "".join(bits)
+
+
+def touch_dir(directory):
+    """
+    Create dir.
+    """
+    if not os.path.isdir(directory):
+        os.makedirs(directory)

@@ -1,3 +1,4 @@
+import os
 import random
 import asyncio
 import logging
@@ -6,9 +7,10 @@ from rpcudp.protocol import RPCProtocol
 
 from kademlia.node import Node
 from kademlia.routing import RoutingTable
-from kademlia.utils import digest
+from kademlia.utils import digest, touch_dir
 
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
+data_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "store")
 
 
 class KademliaProtocol(RPCProtocol):
@@ -17,6 +19,7 @@ class KademliaProtocol(RPCProtocol):
         self.router = RoutingTable(self, ksize, source_node)
         self.storage = storage
         self.source_node = source_node
+        touch_dir(data_path)
 
     def get_refresh_ids(self):
         """
@@ -28,6 +31,7 @@ class KademliaProtocol(RPCProtocol):
             ids.append(rid)
         return ids
 
+    @staticmethod
     def rpc_stun(self, sender):  # pylint: disable=no-self-use
         return sender
 
@@ -43,6 +47,41 @@ class KademliaProtocol(RPCProtocol):
                   sender, key.hex(), value)
         self.storage[key] = value
         return True
+
+    def rpc_file_store(self, sender, node_id, key, value, is_bin):
+        source = Node(node_id, sender[0], sender[1])
+        self.welcome_if_new(source)
+        log.debug(f"got a store request from {sender}, storing '{key.hex}'='{value}'")
+        if is_bin:
+            files_path = os.path.join(data_path, "files")
+            touch_dir(files_path)
+            with open(os.path.join(files_path, key.hex() + ".kad"), "wb") as f:
+                f.write(value)
+
+        else:
+            with open(os.path.join(data_path, key.hex() + ".txt"), "w") as f:
+                f.write(value)
+
+        return True
+
+    def rpc_find_file(self, sender, node_id, key):
+        source = Node(node_id, sender[0], sender[1])
+        self.welcome_if_new(source)
+        value = None
+        files_path = os.path.join(data_path, "files")
+        touch_dir(files_path)
+        if key.hex() + ".kad" in os.listdir(files_path):
+            with open(os.path.join(files_path, key.hex() + ".kad"), "rb") as f:
+                value = f.read()
+
+        if key.hex() + ".txt" in os.listdir(data_path):
+            with open(os.path.join(data_path, key.hex() + ".txt"), "r") as f:
+                value = f.read()
+
+        if value is None:
+            return self.rpc_find_node(sender, node_id, key)
+
+        return {'value': value}
 
     def rpc_find_node(self, sender, nodeid, key):
         log.info("finding neighbors of %i in local table",
@@ -73,9 +112,22 @@ class KademliaProtocol(RPCProtocol):
                                        node_to_find.id)
         return self.handle_call_response(result, node_to_ask)
 
+    async def call_file_value(self, node_to_ask, node_to_find):
+        address = (node_to_ask.ip, node_to_ask.port)
+        result = await self.find_file(address, self.source_node.id, node_to_find.id)
+        return self.handle_call_response(result, node_to_ask)
+
     async def call_ping(self, node_to_ask):
         address = (node_to_ask.ip, node_to_ask.port)
         result = await self.ping(address, self.source_node.id)
+        return self.handle_call_response(result, node_to_ask)
+
+    async def call_file_store(self, node_to_ask, key, value, is_bin):
+        """
+        Replace variable storage with file storage for file saving.
+        """
+        address = (node_to_ask.ip, node_to_ask.port)
+        result = await self.file_store(address, self.source_node.id, key, value, is_bin)
         return self.handle_call_response(result, node_to_ask)
 
     async def call_store(self, node_to_ask, key, value):
