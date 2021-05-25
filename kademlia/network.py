@@ -164,6 +164,7 @@ class Server:
         d_key = digest(key)
         node = Node(d_key)
         nearest = self.protocol.router.find_neighbors(node)
+        self.alpha = len(nearest)
         if not nearest:
             log.warning(f"There are no known neighbors to get key {key}")
             return None
@@ -182,12 +183,12 @@ class Server:
         dkey = digest(key)
         return await self.set_digest(dkey, value)
 
-    async def set_files(self, key, value, is_bin):
+    async def set_files(self, key, value, disperse=False):
         """
         Send a file to be stored in the network.
         @param key: where we want to save it.
         @param value: What we want to save
-        @param is_bin: If the file is a binary file or just normal string.
+        @param disperse: If we want to randomly store this on only one node.
         """
         if not check_dht_value_type(value):
             raise TypeError(
@@ -195,7 +196,7 @@ class Server:
             )
         log.info("setting '%s' = '%s' on network", key, value)
         d_key = digest(key)
-        return await self.set_file_digest(d_key, value, is_bin)
+        return await self.set_file_digest(d_key, value, disperse)
 
     async def set_digest(self, dkey, value):
         """
@@ -223,13 +224,12 @@ class Server:
         # return true only if at least one store call succeeded
         return any(await asyncio.gather(*results))
 
-    async def set_file_digest(self, d_key, value, is_bin):
+    async def set_file_digest(self, d_key, value, disperse):
         """
         Call the store method for the nodes in the network.
         @param d_key: where we want to save it.
         @param value: What we want to save
-        @param is_bin: If the file is a binary file or just normal string.
-        @return:
+        @param disperse: If we want to randomly store this on only one node.
         """
         node = Node(d_key)
         nearest = self.protocol.router.find_neighbors(node)
@@ -242,7 +242,11 @@ class Server:
 
         log.info("setting '%s' on %s", d_key.hex(), list(map(str, nodes)))
 
-        results = [self.protocol.call_file_store(n, d_key, value, is_bin) for n in nodes]
+        if disperse:
+            node = random.choice(nodes)
+            results = [self.protocol.call_file_store(node, d_key, value)]
+        else:
+            results = [self.protocol.call_file_store(n, d_key, value) for n in nodes]
         return any(await asyncio.gather(*results))
 
     def save_state(self, fname):

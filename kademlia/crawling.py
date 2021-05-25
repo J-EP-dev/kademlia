@@ -119,6 +119,9 @@ class ValueSpiderCrawl(SpiderCrawl):
         make sure we tell the nearest node that *didn't* have
         the value to store it.
         """
+        values = [val for val in values if val is not None]
+        if not values:
+            values = [None]
         value_counts = Counter(values)
         if len(value_counts) != 1:
             log.warning("Got multiple values for key %i: %s",
